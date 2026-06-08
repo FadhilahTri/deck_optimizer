@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Deck Building Optimizer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f1a;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      padding: 20px 40px;
+      border-bottom: 2px solid #e94560;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      color: #e94560;
+    }
+
+    header p {
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+
+    /* PANEL KONTROL */
+    .control-panel {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      border: 1px solid #2a2a4a;
+    }
+
+    .control-panel h2 {
+      color: #e94560;
+      margin-bottom: 16px;
+      font-size: 1.1rem;
+    }
+
+    .algo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .algo-btn {
+      background: #16213e;
+      border: 2px solid #2a2a4a;
+      color: #ccc;
+      padding: 10px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .algo-btn:hover, .algo-btn.active {
+      border-color: #e94560;
+      color: #e94560;
+      background: #1f1f3a;
+    }
+
+    .run-btn {
+      background: #e94560;
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+      margin-right: 10px;
+    }
+
+    .run-btn:hover { background: #c73652; }
+
+    .compare-btn {
+      background: #0f3460;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .compare-btn:hover { background: #1a4a80; }
+
+    /* LOADING */
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      color: #e94560;
+      font-size: 1rem;
+    }
+
+    /* HASIL */
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .results-grid { grid-template-columns: 1fr; }
+    }
+
+    .card-box {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #2a2a4a;
+    }
+
+    .card-box h3 {
+      color: #e94560;
+      margin-bottom: 14px;
+      font-size: 1rem;
+    }
+
+    /* FITNESS SCORE */
+    .fitness-score {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #4ecca3;
+      text-align: center;
+      margin: 10px 0;
+    }
+
+    .fitness-breakdown {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .breakdown-item {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+    }
+
+    .breakdown-item span {
+      color: #4ecca3;
+      font-weight: bold;
+      float: right;
+    }
+
+    /* DECK CARDS */
+    .deck-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 8px;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .deck-card {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+      border: 1px solid #2a2a4a;
+      font-size: 0.72rem;
+    }
+
+    .deck-card .card-name {
+      font-weight: bold;
+      color: #e0e0e0;
+      margin-bottom: 4px;
+    }
+
+    .deck-card .card-type {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    .type-Warrior  { background: #8b0000; color: #ffd6d6; }
+    .type-Mage     { background: #00008b; color: #d6d6ff; }
+    .type-Dragon   { background: #4a0080; color: #e8d6ff; }
+    .type-Support  { background: #006400; color: #d6ffd6; }
+    .type-Trap     { background: #8b6914; color: #fff3d6; }
+
+    .deck-card .card-stats {
+      font-size: 0.65rem;
+      color: #aaa;
+    }
+
+    /* CHART */
+    .chart-container {
+      position: relative;
+      height: 260px;
+    }
+
+    /* COMPARE TABLE */
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .compare-table th {
+      background: #16213e;
+      color: #e94560;
+      padding: 10px;
+      text-align: left;
+    }
+
+    .compare-table td {
+      padding: 10px;
+      border-bottom: 1px solid #2a2a4a;
+    }
+
+    .compare-table tr:hover td { background: #1f1f3a; }
+
+    .badge-best {
+      background: #4ecca3;
+      color: #000;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+
+    /* INFO */
+    .info-box {
+      background: #1a1a2e;
+      border-left: 4px solid #e94560;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: #bbb;
+    }
+
+    .info-box h4 { color: #e94560; margin-bottom: 8px; }
+
+    #status-msg {
+      font-size: 0.85rem;
+      color: #4ecca3;
+      margin-top: 10px;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🃏 Deck Building Optimizer</h1>
+    <p>Simulasi Optimasi menggunakan Hill Climbing, Simulated Annealing & Genetic Algorithm</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- INFO -->
+  <div class="info-box">
+    <h4>ℹ️ Tentang Simulasi</h4>
+    Pilih salah satu algoritma optimasi lalu klik <strong>Jalankan Optimasi</strong> untuk melihat proses pencarian deck terbaik dari pool 50 kartu fantasy.
+    Atau klik <strong>Bandingkan Semua</strong> untuk melihat perbandingan performa semua algoritma sekaligus.
+  </div>
+
+  <!-- KONTROL -->
+  <div class="control-panel">
+    <h2>⚙️ Pilih Algoritma</h2>
+    <div class="algo-grid">
+      <button class="algo-btn active" onclick="selectAlgo(this, 'simple_hc')">Simple HC</button>
+      <button class="algo-btn" onclick="selectAlgo(this, 'steepest_hc')">Steepest-Ascent HC</button>
+      <button class="algo-btn" onclick="selectAlgo(this, 'stochastic_hc')">Stochastic HC</button>
+      <button class="algo-btn" onclick="selectAlgo(this, 'random_restart')">HC + Random Restart</button>
+      <button class="algo-btn" onclick="selectAlgo(this, 'sa')">Simulated Annealing</button>
+      <button class="algo-btn" onclick="selectAlgo(this, 'ga')">Genetic Algorithm</button>
+    </div>
+    <button class="run-btn" onclick="runOptimize()">▶ Jalankan Optimasi</button>
+    <button class="compare-btn" onclick="runCompare()">📊 Bandingkan Semua</button>
+    <div id="status-msg"></div>
+  </div>
+
+  <!-- LOADING -->
+  <div class="loading" id="loading">⏳ Sedang menjalankan algoritma...</div>
+
+  <!-- HASIL SINGLE -->
+  <div id="single-result" style="display:none">
+    <div class="results-grid">
+      <!-- Fitness Score -->
+      <div class="card-box">
+        <h3>🎯 Fitness Score</h3>
+        <div class="fitness-score" id="fitness-val">-</div>
+        <div class="fitness-breakdown" id="breakdown"></div>
+      </div>
+      <!-- Grafik -->
+      <div class="card-box">
+        <h3>📈 Grafik Konvergensi</h3>
+        <div class="chart-container">
+          <canvas id="convergenceChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <!-- Deck -->
+    <div class="card-box" style="margin-bottom:24px">
+      <h3>🃏 Deck Terbaik (20 Kartu)</h3>
+      <div class="deck-grid" id="deck-display"></div>
+    </div>
+  </div>
+
+  <!-- HASIL COMPARE -->
+  <div id="compare-result" style="display:none">
+    <div class="card-box" style="margin-bottom:24px">
+      <h3>📊 Perbandingan Semua Algoritma</h3>
+      <div class="chart-container" style="height:300px; margin-bottom:20px">
+        <canvas id="compareChart"></canvas>
+      </div>
+      <table class="compare-table" id="compare-table"></table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let selectedAlgo = 'simple_hc';
+  let convergenceChart = null;
+  let compareChart = null;
+
+  function selectAlgo(btn, algo) {
+    document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedAlgo = algo;
+    document.getElementById('status-msg').textContent = '';
+  }
+
+  async function runOptimize() {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('single-result').style.display = 'none';
+    document.getElementById('compare-result').style.display = 'none';
+    document.getElementById('status-msg').textContent = 'Menjalankan ' + selectedAlgo + '...';
+
+    try {
+      const res  = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ algorithm: selectedAlgo })
+      });
+      const data = await res.json();
+      document.getElementById('loading').style.display = 'none';
+      showSingleResult(data);
+      document.getElementById('status-msg').textContent = '✅ Selesai! Algoritma: ' + data.algorithm;
+    } catch(e) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('status-msg').textContent = '❌ Error: ' + e.message;
+    }
+  }
+
+  function showSingleResult(data) {
+    document.getElementById('single-result').style.display = 'block';
+    document.getElementById('fitness-val').textContent = data.final_fitness.toFixed(2);
+
+    // Breakdown
+    const b = data.breakdown;
+    document.getElementById('breakdown').innerHTML = `
+      <div class="breakdown-item">⚔️ Total Attack <span>${b.total_attack}</span></div>
+      <div class="breakdown-item">🛡️ Total Defense <span>${b.total_defense}</span></div>
+      <div class="breakdown-item">✨ Sinergi Bonus <span>${b.synergy_bonus}</span></div>
+      <div class="breakdown-item">💎 Mana Efficiency <span>${b.mana_efficiency}</span></div>
+    `;
+
+    // Deck
+    const deckDiv = document.getElementById('deck-display');
+    deckDiv.innerHTML = data.final_deck.map(c => `
+      <div class="deck-card">
+        <div class="card-name">${c.name}</div>
+        <div class="card-type type-${c.type}">${c.type}</div>
+        <div class="card-stats">⚔️${c.attack} 🛡️${c.defense} 💎${c.mana_cost}</div>
+      </div>
+    `).join('');
+
+    // Chart
+    if (convergenceChart) convergenceChart.destroy();
+    const ctx = document.getElementById('convergenceChart').getContext('2d');
+    convergenceChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.history.map((_, i) => i),
+        datasets: [{
+          label: 'Fitness',
+          data: data.history,
+          borderColor: '#e94560',
+          backgroundColor: 'rgba(233,69,96,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#ccc' } } },
+        scales: {
+          x: { ticks: { color: '#aaa' }, grid: { color: '#2a2a4a' } },
+          y: { ticks: { color: '#aaa' }, grid: { color: '#2a2a4a' } }
+        }
+      }
+    });
+  }
+
+  async function runCompare() {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('single-result').style.display = 'none';
+    document.getElementById('compare-result').style.display = 'none';
+    document.getElementById('status-msg').textContent = 'Membandingkan semua algoritma...';
+
+    try {
+      const res  = await fetch('/api/compare');
+      const data = await res.json();
+      document.getElementById('loading').style.display = 'none';
+      showCompareResult(data);
+      document.getElementById('status-msg').textContent = '✅ Perbandingan selesai!';
+    } catch(e) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('status-msg').textContent = '❌ Error: ' + e.message;
+    }
+  }
+
+  function showCompareResult(data) {
+    document.getElementById('compare-result').style.display = 'block';
+
+    const colors = ['#e94560','#4ecca3','#f5a623','#7ed6df','#a29bfe','#fd79a8'];
+    const maxFitness = Math.max(...data.comparison.map(r => r.final_fitness));
+
+    // Chart
+    if (compareChart) compareChart.destroy();
+    const ctx = document.getElementById('compareChart').getContext('2d');
+    compareChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.comparison[0].history.map((_, i) => i),
+        datasets: data.comparison.map((r, i) => ({
+          label: r.algorithm,
+          data: r.history,
+          borderColor: colors[i],
+          backgroundColor: 'transparent',
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2
+        }))
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#ccc', boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: '#aaa' }, grid: { color: '#2a2a4a' } },
+          y: { ticks: { color: '#aaa' }, grid: { color: '#2a2a4a' } }
+        }
+      }
+    });
+
+    // Table
+    const table = document.getElementById('compare-table');
+    table.innerHTML = `
+      <tr>
+        <th>Algoritma</th>
+        <th>Fitness Akhir</th>
+        <th>Iterasi</th>
+        <th>Status</th>
+      </tr>
+      ${data.comparison.map(r => `
+        <tr>
+          <td>${r.algorithm}</td>
+          <td style="color:#4ecca3;font-weight:bold">${r.final_fitness.toFixed(2)}</td>
+          <td>${r.history.length}</td>
+          <td>${r.final_fitness === maxFitness ? '<span class="badge-best">🏆 TERBAIK</span>' : '-'}</td>
+        </tr>
+      `).join('')}
+    `;
+  }
+</script>
+
+</body>
+</html>
